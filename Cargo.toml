@@ -1,0 +1,10 @@
+[package]
+name = "agenttrail"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.74"
+description = "Local audit trail for AI-assisted development actions"
+license = "MIT"
+repository = "https://github.com/BLCCoreStudio/AgentTrail"
+
+[dependencies]
