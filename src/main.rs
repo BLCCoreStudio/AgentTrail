@@ -533,6 +533,9 @@ mod tests {
 
     #[test]
     fn status_parser_uses_rename_destination() {
-        assert_eq!(status_path("R  old.txt -> .github/workflows/new.yml"), ".github/workflows/new.yml");
+        assert_eq!(
+            status_path("R  old.txt -> .github/workflows/new.yml"),
+            ".github/workflows/new.yml"
+        );
     }
 }
