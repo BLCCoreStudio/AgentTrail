@@ -15,7 +15,9 @@ fn main() {
         return;
     }
     if args.len() == 1 && args[0] == "status" {
-        println!("AgentTrail is in early development; persistent command recording is not enabled yet.");
+        println!(
+            "AgentTrail is in early development; persistent command recording is not enabled yet."
+        );
         return;
     }
     eprintln!("agenttrail: unsupported command in the current development scaffold");
