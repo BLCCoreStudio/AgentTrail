@@ -188,8 +188,8 @@ fn capture_snapshot() -> Snapshot {
         };
     };
 
-    let status = command_output(&["status", "--porcelain=v1", "--untracked-files=all"])
-        .unwrap_or_default();
+    let status =
+        command_output(&["status", "--porcelain=v1", "--untracked-files=all"]).unwrap_or_default();
     let diff = command_output(&["diff", "--binary", "HEAD", "--"])
         .or_else(|| command_output(&["diff", "--binary", "--"]))
         .unwrap_or_default();
