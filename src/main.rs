@@ -145,6 +145,100 @@ fn command_output(args: &[&str]) -> Option<Vec<u8>> {
     output.status.success().then_some(output.stdout)
 }
 
+fn run_git_at(path: &Path, args: &[&str]) -> Result<String, String> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(path)
+        .args(args)
+        .output()
+        .map_err(|error| format!("failed to start git: {error}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+        return Err(if stderr.is_empty() {
+            "git command failed".to_owned()
+        } else {
+            stderr
+        });
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+fn review_hint(path: &str) -> Option<&'static str> {
+    let lower = path.to_ascii_lowercase();
+
+    if lower.starts_with(".github/workflows/") || lower.contains("/workflows/") {
+        return Some("CI/workflow configuration changed");
+    }
+    if lower.ends_with("cargo.toml")
+        || lower.ends_with("cargo.lock")
+        || lower.ends_with("package.json")
+        || lower.ends_with("package-lock.json")
+        || lower.ends_with("pnpm-lock.yaml")
+        || lower.ends_with("yarn.lock")
+        || lower.ends_with("requirements.txt")
+        || lower.ends_with("pyproject.toml")
+        || lower.ends_with("poetry.lock")
+    {
+        return Some("dependency/build manifest changed");
+    }
+    if lower.contains(".env")
+        || lower.contains("secret")
+        || lower.contains("credential")
+        || lower.ends_with("id_rsa")
+        || lower.ends_with("id_ed25519")
+    {
+        return Some("potentially sensitive path changed");
+    }
+    if lower.contains("auth")
+        || lower.contains("security")
+        || lower.contains("permission")
+        || lower.contains("policy")
+    {
+        return Some("security-sensitive path name changed");
+    }
+    None
+}
+
+fn status_path(line: &str) -> &str {
+    let path = line.get(3..).unwrap_or(line).trim();
+    path.rsplit_once(" -> ")
+        .map(|(_, destination)| destination.trim())
+        .unwrap_or(path)
+}
+
+fn review_worktree(path: &Path) -> Result<(), String> {
+    let status = run_git_at(path, &["status", "--short", "--untracked-files=all"])?;
+    if status.trim().is_empty() {
+        println!("Working tree clean.");
+        return Ok(());
+    }
+
+    let stat = run_git_at(path, &["diff", "--stat", "HEAD"]).unwrap_or_default();
+    let mut hinted = 0usize;
+
+    println!("Changed entries:");
+    for line in status.lines().filter(|line| !line.trim().is_empty()) {
+        println!("{line}");
+        let path = status_path(line);
+        if let Some(hint) = review_hint(path) {
+            hinted += 1;
+            println!("  REVIEW: {hint}: {path}");
+        }
+    }
+
+    if !stat.trim().is_empty() {
+        println!("\nDiff statistics:\n{stat}");
+    }
+
+    println!("Review hints: {hinted}");
+    println!(
+        "Note: hints identify paths that deserve attention; they do not prove a change is unsafe or AI-generated."
+    );
+    Ok(())
+}
+
 fn git_hash(payload: &[u8]) -> Result<String, String> {
     let mut child = Command::new("git")
         .args(["hash-object", "--stdin"])
@@ -346,7 +440,7 @@ fn print_history() -> Result<(), String> {
 
 fn help() {
     println!(
-        "AgentTrail 0.2.0-dev\n\nUSAGE:\n  agenttrail run -- <COMMAND> [ARGS...]\n  agenttrail history\n  agenttrail verify <RECEIPT>\n\nAgentTrail records explicitly wrapped commands and now creates a local change-evidence receipt containing before/after Git working-tree evidence object IDs, changed-file counts, timing, exit status, and a redacted command. Receipts are integrity-checked with the repository's Git object hashing mechanism."
+        "AgentTrail 0.2.0-dev\n\nUSAGE:\n  agenttrail run -- <COMMAND> [ARGS...]\n  agenttrail history\n  agenttrail verify <RECEIPT>\n  agenttrail review [PATH]\n\nAgentTrail records explicitly wrapped commands, creates before/after Git change-evidence receipts, verifies receipt integrity, and can perform a read-only review of the current working tree with explainable risky-path hints."
     );
 }
 
@@ -381,6 +475,13 @@ fn main() {
                 process::exit(3);
             }
         }
+        "review" if args.len() <= 2 => {
+            let path = Path::new(args.get(1).map(String::as_str).unwrap_or("."));
+            if let Err(error) = review_worktree(path) {
+                eprintln!("agenttrail: {error}");
+                process::exit(2);
+            }
+        }
         _ => {
             eprintln!("agenttrail: unsupported command; use --help");
             process::exit(2);
@@ -390,7 +491,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{escape_field, redact_args, REDACTED};
+    use super::{escape_field, redact_args, review_hint, status_path, REDACTED};
 
     #[test]
     fn redacts_value_after_sensitive_flag() {
@@ -412,5 +513,26 @@ mod tests {
     #[test]
     fn escapes_log_control_characters() {
         assert_eq!(escape_field("a\tb\nc"), "a\\tb\\nc");
+    }
+
+    #[test]
+    fn review_flags_workflow_files() {
+        assert_eq!(
+            review_hint(".github/workflows/release.yml"),
+            Some("CI/workflow configuration changed")
+        );
+    }
+
+    #[test]
+    fn review_flags_dependency_manifests() {
+        assert_eq!(
+            review_hint("Cargo.lock"),
+            Some("dependency/build manifest changed")
+        );
+    }
+
+    #[test]
+    fn status_parser_uses_rename_destination() {
+        assert_eq!(status_path("R  old.txt -> .github/workflows/new.yml"), ".github/workflows/new.yml");
     }
 }
