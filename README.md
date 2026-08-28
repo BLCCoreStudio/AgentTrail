@@ -1,29 +1,53 @@
 # AgentTrail
 
-**Local audit trail for commands, file changes, and actions performed by AI coding agents.**
+**Local audit trail for explicitly wrapped development commands.**
 
-> **Status:** early development. No stable release has been published.
+> **Status:** development preview. No stable release has been published.
 
-AgentTrail is intended to create a reviewable local record of agent-assisted development activity without requiring a remote telemetry service.
+AgentTrail creates a reviewable local record for commands that are intentionally launched through its wrapper. It does **not** claim to observe every action performed by an AI agent, editor, shell, or operating system.
 
-## Planned v0.1
+## Current preview
 
-- record explicitly wrapped command executions
-- capture timestamps, exit status, and working directory
-- redact common secret-bearing arguments before persistence
-- keep logs local by default
-- provide human-readable history and machine-readable export
-- document clearly what AgentTrail can and cannot observe
+Run a command through AgentTrail:
 
-The current repository contains the development scaffold only. Command recording is not implemented yet because logging command arguments safely requires a deliberate redaction model.
+```bash
+agenttrail run -- cargo test --all-targets
+```
+
+Read the local history:
+
+```bash
+agenttrail history
+```
+
+Each event records:
+
+- Unix timestamp
+- working directory
+- exit status
+- wrapped command and arguments
+
+Common secret-bearing arguments such as token/password/secret/API-key flags and inline assignments are redacted before persistence. Control characters are escaped to reduce log-injection ambiguity.
+
+By default history is stored at:
+
+```text
+~/.local/state/agenttrail/events.log
+```
+
+Set `AGENTTRAIL_LOG` to use an explicit alternative path.
+
+## Scope and limitations
+
+AgentTrail only records commands launched as `agenttrail run -- ...`. It does not monitor arbitrary processes, file changes, network traffic, or commands executed outside the wrapper. Redaction is defense-in-depth, not a guarantee that every possible secret format will be recognized.
 
 ## Build
 
 Requires Rust 1.74 or newer.
 
 ```bash
-cargo build
-cargo test
+cargo build --locked
+cargo test --locked
 ```
 
 ## Security
