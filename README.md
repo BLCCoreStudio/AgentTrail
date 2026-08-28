@@ -4,7 +4,9 @@
 
 > **Status:** development preview. No stable release has been published.
 
-AgentTrail records commands that are intentionally launched through its wrapper and now creates a receipt describing the Git working-tree evidence observed before and after the command. The goal is not merely to keep shell history, but to make an AI-assisted change easier to review and verify later.
+AgentTrail records commands that are intentionally launched through its wrapper, creates a receipt describing the Git working-tree evidence observed before and after the command, verifies receipt integrity, and can perform a read-only review of the current working tree.
+
+The goal is not merely to keep shell history, but to make an AI-assisted change easier to inspect and verify later.
 
 AgentTrail does **not** claim to observe every action performed by an AI agent, editor, shell, MCP server, or operating system. It records only work explicitly launched through AgentTrail and evidence Git can expose from the current repository.
 
@@ -14,13 +16,34 @@ AgentTrail does **not** claim to observe every action performed by an AI agent, 
 agenttrail run -- cargo test --all-targets
 ```
 
-For every wrapped command AgentTrail keeps the existing local event history and creates a receipt under:
+For every wrapped command AgentTrail keeps the local event history and creates a receipt under:
 
 ```text
 ~/.local/state/agenttrail/receipts/
 ```
 
 Set `AGENTTRAIL_STATE` to choose a different state directory.
+
+## Review the current working tree
+
+```bash
+agenttrail review
+```
+
+Or inspect another repository:
+
+```bash
+agenttrail review /path/to/repository
+```
+
+The review is read-only. It reports changed entries, Git diff statistics when available, and explainable **review hints** for paths that deserve extra attention, including examples such as:
+
+- CI/workflow configuration
+- dependency/build manifests and lockfiles
+- potentially sensitive path names
+- authentication, security, permission, or policy-related paths
+
+A review hint is not proof that a change is unsafe and does not prove that a specific edit was produced by an AI agent.
 
 ## What a receipt contains
 
@@ -53,7 +76,7 @@ Git's object hashing algorithm depends on the repository/Git configuration; Agen
 agenttrail history
 ```
 
-By default the append-only-style command history is stored at:
+By default the command history is stored at:
 
 ```text
 ~/.local/state/agenttrail/events.log
@@ -69,7 +92,9 @@ Redaction is defense-in-depth, not a guarantee that every secret format will be 
 
 ## Relationship to AgentDiff
 
-`AgentDiff` remains a focused companion repository for experimenting with review-oriented diff summaries and risky-file hints. AgentTrail is the primary integration target for session/change evidence and receipt verification.
+AgentDiff's useful read-only working-tree summary direction is now represented directly in AgentTrail through `agenttrail review`, including explainable risky-path review hints.
+
+`AgentDiff` remains public as a focused companion/research history rather than being deleted or republished. Future broadly useful review behavior should integrate into AgentTrail after testing.
 
 ## Build
 
@@ -85,6 +110,7 @@ cargo test --locked
 - Only commands launched as `agenttrail run -- ...` are directly recorded.
 - AgentTrail does not monitor arbitrary child/grandchild activity beyond the wrapped process exit status.
 - Current Git evidence does not include network traffic or a complete copy of every untracked file's contents.
+- Review hints are path-based attention signals, not security verdicts.
 - A verified receipt proves that the stored receipt payload matches its recorded Git object ID; it does not prove that the underlying command or resulting code is safe.
 
 See [SECURITY.md](SECURITY.md) for reporting guidance and current limitations.
