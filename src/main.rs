@@ -205,7 +205,11 @@ mod tests {
 
     #[test]
     fn redacts_value_after_sensitive_flag() {
-        let args = vec!["curl".to_owned(), "--token".to_owned(), "secret-value".to_owned()];
+        let args = vec![
+            "curl".to_owned(),
+            "--token".to_owned(),
+            "secret-value".to_owned(),
+        ];
         let redacted = redact_args(&args);
         assert_eq!(redacted[2], REDACTED);
     }
